@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MiniTok</title>
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MiniTok">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    --page-bg: #eceef2;
+    --page-fg: #16171b;
+    --page-muted: #62666f;
+    --panel: #ffffff;
+    --panel-line: #d9dce3;
+    --red: #fe2c55;
+    --cyan: #25f4ee;
+    --phone-bg: #000;
+    --phone-fg: #fff;
+    --phone-muted: #8a8b91;
+    --phone-line: #2a2a2e;
+    --phone-chip: #2a2a2e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page-bg: #121316; --page-fg: #f1f2f4; --page-muted: #9a9ea8;
+      --panel: #1b1c21; --panel-line: #2c2e35;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page-bg: #121316; --page-fg: #f1f2f4; --page-muted: #9a9ea8;
+    --panel: #1b1c21; --panel-line: #2c2e35;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--page-bg);
+    color: var(--page-fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    display: flex; gap: 32px; align-items: center; justify-content: center;
+    padding: 24px; min-height: 100vh; flex-wrap: wrap;
+  }
+
+  /* ---------- controls panel ---------- */
+  .panel {
+    width: 280px; background: var(--panel); border: 1px solid var(--panel-line);
+    border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px;
+  }
+  .panel h1 { font-size: 18px; margin: 0; font-weight: 700; }
+  .panel p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--page-muted); }
+  .panel .row { display: flex; align-items: center; justify-content: space-between; font-size: 14px; }
+  .panel button {
+    font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+    border-radius: 8px; padding: 10px 12px; border: 1px solid var(--panel-line);
+    background: transparent; color: var(--page-fg);
+  }
+  .panel button:hover { border-color: var(--page-muted); }
+  .panel button.primary { background: var(--red); border-color: var(--red); color: #fff; }
+  .switch { position: relative; width: 42px; height: 24px; }
+  .switch input { opacity: 0; width: 100%; height: 100%; margin: 0; position: absolute; cursor: pointer; z-index: 1; }
+  .switch span { position: absolute; inset: 0; background: var(--panel-line); border-radius: 12px; transition: background .15s; }
+  .switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; }
+  .switch input:checked + span { background: var(--red); }
+  .switch input:checked + span::after { transform: translateX(18px); }
+  .switch input:focus-visible + span { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+  /* ---------- phone ---------- */
+  .phone {
+    width: 390px; height: 800px; max-height: calc(100vh - 48px);
+    background: var(--phone-bg); color: var(--phone-fg);
+    border-radius: 44px; border: 10px solid #1c1c1f; overflow: hidden;
+    position: relative; display: flex; flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  }
+  .screen { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+  .view { position: absolute; inset: 0; overflow-y: auto; display: none; scrollbar-width: none; }
+  .view::-webkit-scrollbar { display: none; }
+  .view.active { display: block; }
+
+  [data-edit] { outline: none; border-radius: 4px; cursor: text; transition: background .12s; }
+  [data-edit]:hover { background: rgba(255,255,255,.12); }
+  [data-edit]:focus { background: rgba(37,244,238,.18); box-shadow: 0 0 0 2px var(--cyan); }
+  [data-edit].empty::before { content: attr(data-placeholder); color: var(--phone-muted); }
+
+  /* profile */
+  .topbar { display: flex; align-items: center; justify-content: center; padding: 14px 16px 6px; font-weight: 700; font-size: 17px; gap: 6px; position: relative; }
+  .topbar .icon-l, .topbar .icon-r { position: absolute; top: 12px; width: 24px; height: 24px; }
+  .topbar .icon-l { left: 16px; } .topbar .icon-r { right: 16px; }
+  .profile { text-align: center; padding: 8px 16px 0; }
+  .avatar-wrap { position: relative; width: 96px; height: 96px; margin: 8px auto 10px; }
+  .avatar {
+    width: 96px; height: 96px; border-radius: 50%; background: linear-gradient(135deg, #fe2c55, #7b2ff7 60%, #25f4ee);
+    background-size: cover; background-position: center; cursor: pointer; border: 0; padding: 0; display: block;
+    color: #fff; font-size: 38px; font-weight: 700;
+  }
+  .avatar:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+  .avatar-hint { position: absolute; right: -2px; bottom: -2px; width: 28px; height: 28px; border-radius: 50%; background: var(--red); display: grid; place-items: center; border: 3px solid #000; pointer-events: none; }
+  .handle { font-size: 17px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; }
+  .handle .badge { width: 16px; height: 16px; flex: none; }
+  .badge[hidden] { display: none; }
+  .stats { display: flex; justify-content: center; gap: 0; margin: 14px 0 12px; }
+  .stat { flex: 1; max-width: 110px; padding: 0 6px; }
+  .stat + .stat { border-left: 1px solid var(--phone-line); }
+  .stat b { display: block; font-size: 18px; font-weight: 700; min-height: 24px; }
+  .stat small { color: var(--phone-muted); font-size: 13px; }
+  .actions { display: flex; justify-content: center; gap: 6px; margin-bottom: 12px; }
+  .btn { border: 0; font: inherit; font-weight: 600; font-size: 15px; padding: 11px 0; border-radius: 4px; cursor: pointer; color: #fff; }
+  .btn.follow { background: var(--red); width: 150px; }
+  .btn.follow.on { background: var(--phone-chip); }
+  .btn.sq { background: var(--phone-chip); width: 46px; display: grid; place-items: center; }
+  .bio { font-size: 14px; line-height: 1.45; margin: 0 auto 6px; max-width: 300px; min-height: 20px; }
+  .link { font-size: 14px; font-weight: 600; margin-bottom: 8px; min-height: 20px; }
+
+  .tabs { display: flex; border-bottom: 1px solid var(--phone-line); margin-top: 8px; position: sticky; top: 0; background: #000; z-index: 2; }
+  .tabs div { flex: 1; text-align: center; padding: 12px 0; color: var(--phone-muted); }
+  .tabs div.on { color: #fff; box-shadow: inset 0 -2px 0 #fff; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; padding-bottom: 12px; }
+  .tile { aspect-ratio: 3 / 4; position: relative; cursor: pointer; background-size: cover; }
+  .tile .views { position: absolute; left: 6px; bottom: 6px; display: flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,.6); cursor: default; }
+  .tile .pin { position: absolute; left: 6px; top: 6px; background: var(--red); font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 3px; }
+
+  /* feed */
+  .feed { background: linear-gradient(160deg, #2b1055 0%, #7597de 55%, #ff7a8a 100%); }
+  .feed-top { position: absolute; top: 14px; left: 0; right: 0; display: flex; justify-content: center; gap: 18px; font-weight: 600; font-size: 16px; color: rgba(255,255,255,.65); text-shadow: 0 1px 4px rgba(0,0,0,.4); z-index: 2; }
+  .feed-top .on { color: #fff; box-shadow: 0 2px 0 #fff; }
+  .rail { position: absolute; right: 10px; bottom: 24px; display: flex; flex-direction: column; align-items: center; gap: 18px; z-index: 2; }
+  .rail .item { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 13px; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+  .rail button { background: none; border: 0; padding: 0; cursor: pointer; color: #fff; display: grid; place-items: center; width: 44px; height: 44px; }
+  .rail button svg { width: 34px; height: 34px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.45)); }
+  .rail button.liked svg path { fill: var(--red); }
+  .rail .mini-av { width: 46px; height: 46px; border-radius: 50%; border: 2px solid #fff; background: linear-gradient(135deg, #fe2c55, #7b2ff7); background-size: cover; background-position: center; margin-bottom: 8px; position: relative; }
+  .rail .mini-av::after { content: "+"; position: absolute; left: 50%; bottom: -9px; transform: translateX(-50%); width: 20px; height: 20px; border-radius: 50%; background: var(--red); font-size: 15px; line-height: 20px; text-align: center; font-weight: 700; }
+  .caption { position: absolute; left: 14px; right: 84px; bottom: 26px; z-index: 2; text-shadow: 0 1px 4px rgba(0,0,0,.55); }
+  .caption .who { font-weight: 700; font-size: 16px; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+  .caption .text { font-size: 14px; line-height: 1.4; margin-bottom: 8px; }
+  .caption .sound { font-size: 13px; display: flex; gap: 6px; align-items: center; }
+  .feed-hint { position: absolute; top: 46%; left: 0; right: 0; text-align: center; font-size: 13px; color: rgba(255,255,255,.7); pointer-events: none; }
+
+  /* nav */
+  .nav { display: flex; align-items: center; justify-content: space-around; background: #000; border-top: 1px solid var(--phone-line); padding: 8px 0 12px; }
+  .nav button { background: none; border: 0; color: var(--phone-muted); font: inherit; font-size: 11px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; width: 64px; }
+  .nav button.on { color: #fff; }
+  .nav button:focus-visible { outline: 2px solid var(--cyan); border-radius: 6px; }
+  .nav svg { width: 24px; height: 24px; }
+  .plus { width: 46px; height: 30px; border-radius: 9px; background: #fff; position: relative; box-shadow: -3px 0 0 var(--cyan), 3px 0 0 var(--red); display: grid; place-items: center; color: #000; font-size: 22px; font-weight: 700; line-height: 1; }
+
+  @media (max-width: 720px) {
+    body { padding: 0; gap: 0; display: block; }
+    .panel { display: none; position: fixed; z-index: 20; left: 12px; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 56px); width: auto; border-radius: 14px; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+    body.show-panel .panel { display: flex; }
+    .gear { display: grid !important; }
+    .phone { width: 100%; height: 100vh; max-height: none; border: 0; border-radius: 0; box-shadow: none; }
+  }
+  .gear { display: none; position: fixed; z-index: 21; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 12px; width: 38px; height: 38px; border-radius: 50%; border: 0; background: rgba(40,40,44,.85); color: #fff; place-items: center; cursor: pointer; }
+  .gear:focus-visible { outline: 2px solid var(--cyan); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<button class="gear" id="gear" aria-label="Settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button>
+<aside class="panel">
+  <h1>Mini TikTok mockup</h1>
+  <p>Every number and text in the phone is editable. Tap it and type anything, like 2.4M or 18.5K. Tap the avatar to add your own photo.</p>
+  <label class="row">Verified badge
+    <span class="switch"><input type="checkbox" id="verified" checked><span></span></span>
+  </label>
+  <button id="shuffle">Shuffle video covers</button>
+  <button id="boost" class="primary">Boost all numbers</button>
+  <button id="reset">Reset everything</button>
+  <p style="font-size:12px">For design mockups and demos only. Not real data.</p>
+</aside>
+
+<div class="phone" id="phone">
+  <div class="screen">
+
+    <!-- PROFILE -->
+    <section class="view active" id="view-profile">
+      <div class="topbar">
+        <svg class="icon-l" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-6 8-6s8 2 8 6"/><path d="M19 3v6M16 6h6" transform="translate(-2 0) scale(.6) translate(14 0)"/></svg>
+        <span data-edit="topName" data-placeholder="Name" contenteditable="true" spellcheck="false">Nova Rivers</span>
+        <svg class="icon-r" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </div>
+
+      <div class="profile">
+        <div class="avatar-wrap">
+          <button class="avatar" id="avatar" aria-label="Change profile photo">N</button>
+          <div class="avatar-hint"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+          <input type="file" id="avatarFile" accept="image/*" hidden>
+        </div>
+
+        <div class="handle">@<span data-edit="handle" data-placeholder="username" contenteditable="true" spellcheck="false">novarivers</span>
+          <svg class="badge" id="badge" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#20d5ec"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><b data-edit="following" contenteditable="true" spellcheck="false">312</b><small>Following</small></div>
+          <div class="stat"><b data-edit="followers" contenteditable="true" spellcheck="false">1.8M</b><small>Followers</small></div>
+          <div class="stat"><b data-edit="likes" contenteditable="true" spellcheck="false">24.6M</b><small>Likes</small></div>
+        </div>
+
+        <div class="actions">
+          <button class="btn follow" id="follow">Follow</button>
+          <button class="btn sq" aria-label="Message"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg></button>
+          <button class="btn sq" aria-label="Suggested accounts"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button>
+        </div>
+
+        <div class="bio" data-edit="bio" data-placeholder="Add a bio" contenteditable="true" spellcheck="false">Making tiny things look big ✨<br>Collabs: hello@novarivers.co</div>
+        <div class="link"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" style="vertical-align:-2px;margin-right:4px"><path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/></svg><span data-edit="link" data-placeholder="Add a link" contenteditable="true" spellcheck="false">novarivers.co</span></div>
+      </div>
+
+      <div class="tabs">
+        <div class="on"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg></div>
+        <div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8a8b91" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+        <div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8a8b91" stroke-width="2" stroke-linejoin="round"><path d="M6 4h12v17l-6-4-6 4z"/></svg></div>
+      </div>
+      <div class="grid" id="grid"></div>
+    </section>
+
+    <!-- FEED -->
+    <section class="view feed" id="view-feed">
+      <div class="feed-top"><span>Following</span><span class="on">For You</span></div>
+      <div class="feed-hint">Tap the caption or numbers to edit</div>
+
+      <div class="rail">
+        <div class="mini-av" id="railAvatar"></div>
+        <div class="item">
+          <button id="likeBtn" aria-label="Like"><svg viewBox="0 0 24 24"><path fill="#fff" d="M12 21s-8-5.2-8-11a4.6 4.6 0 0 1 8-3 4.6 4.6 0 0 1 8 3c0 5.800-8 11-8 11z"/></svg></button>
+          <span data-edit="fLikes" contenteditable="true" spellcheck="false">482.1K</span>
+        </div>
+        <div class="item">
+          <button aria-label="Comments"><svg viewBox="0 0 24 24"><path fill="#fff" d="M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9l-5 4V5a1 1 0 0 1 0-1z"/></svg></button>
+          <span data-edit="fComments" contenteditable="true" spellcheck="false">9,214</span>
+        </div>
+        <div class="item">
+          <button aria-label="Save"><svg viewBox="0 0 24 24"><path fill="#fff" d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.500L5 21V4a1 1 0 0 1 1-1z"/></svg></button>
+          <span data-edit="fSaves" contenteditable="true" spellcheck="false">61.7K</span>
+        </div>
+        <div class="item">
+          <button aria-label="Share"><svg viewBox="0 0 24 24"><path fill="#fff" d="M14 4l8 8-8 8v-5c-6 0-9.500 1.800-12 5 1-6 4.500-10 12-11z"/></svg></button>
+          <span data-edit="fShares" contenteditable="true" spellcheck="false">27.3K</span>
+        </div>
+      </div>
+
+      <div class="caption">
+        <div class="who">@<span data-edit="fHandle" contenteditable="true" spellcheck="false">novarivers</span>
+          <svg class="badge" id="badge2" width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#20d5ec"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="text" data-edit="fCaption" data-placeholder="Write a caption" contenteditable="true" spellcheck="false">Sunday reset routine that actually works 🌿 #fyp #routine #reset</div>
+        <div class="sound">♪ <span data-edit="fSound" contenteditable="true" spellcheck="false">original sound - novarivers</span></div>
+      </div>
+    </section>
+
+  </div>
+
+  <nav class="nav">
+    <button data-go="feed"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l9 8h-3v9h-4v-6h-4v6H6v-9H3z"/></svg>Home</button>
+    <button aria-label="Friends"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.500"/><path d="M2 20c0-4 3-6 7-6s7 2 7 6"/><circle cx="17" cy="9" r="2.500"/></svg>Friends</button>
+    <button aria-label="Create"><span class="plus">+</span></button>
+    <button aria-label="Inbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 5h18v12H8l-5 4z"/></svg>Inbox</button>
+    <button data-go="profile" class="on"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4.500"/><path d="M3 21c0-5 4-7 9-7s9 2 9 7z"/></svg>Profile</button>
+  </nav>
+</div>
+
+<script>
+(function () {
+  var KEY = "mini-tiktok-v1";
+  var GRADS = [
+    ["#ff9a9e","#fad0c4"],["#a18cd1","#fbc2eb"],["#43e97b","#38f9d7"],["#fa709a","#fee140"],
+    ["#30cfd0","#330867"],["#f5576c","#f093fb"],["#4facfe","#00f2fe"],["#fbc2eb","#a6c1ee"],
+    ["#f6d365","#fda085"],["#667eea","#764ba2"],["#0ba360","#3cba92"],["#ff5858","#f09819"]
+  ];
+  var defaultViews = ["2.1M","845.3K","1.4M","312K","98.7K","4.6M","520K","76.2K","1.1M"];
+
+  function defaults() {
+    return {
+      fields: {}, avatar: "", verified: true, following: false,
+      views: defaultViews.slice(),
+      covers: [0,1,2,3,4,5,6,7,8]
+    };
+  }
+  var state = defaults();
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw) { var s = JSON.parse(raw); if (s && typeof s === "object") state = Object.assign(defaults(), s); }
+  } catch (e) {}
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+
+  // ----- editable text fields -----
+  var defaultText = {};
+  $$("[data-edit]").forEach(function (el) {
+    var k = el.dataset.edit;
+    defaultText[k] = el.innerHTML;
+    if (state.fields[k] != null) el.innerHTML = state.fields[k];
+    el.addEventListener("input", function () {
+      state.fields[k] = el.innerHTML; toggleEmpty(el); mirror(k, el); save();
+    });
+    el.addEventListener("keydown", function (e) {
+      var multi = k === "bio" || k === "fCaption";
+      if (e.key === "Enter" && !multi) { e.preventDefault(); el.blur(); }
+    });
+    el.addEventListener("paste", function (e) {
+      e.preventDefault();
+      var t = (e.clipboardData || window.clipboardData).getData("text/plain");
+      document.execCommand("insertText", false, t);
+    });
+    toggleEmpty(el);
+  });
+  function toggleEmpty(el) { el.classList.toggle("empty", el.textContent.trim() === ""); }
+  // keep the profile handle and feed handle in sync
+  function mirror(k, el) {
+    var pair = k === "handle" ? "fHandle" : k === "fHandle" ? "handle" : null;
+    if (!pair) return;
+    var other = $('[data-edit="' + pair + '"]');
+    if (other && other !== document.activeElement) { other.innerHTML = el.innerHTML; state.fields[pair] = el.innerHTML; toggleEmpty(other); }
+    updateInitial();
+  }
+
+  // ----- avatar -----
+  var avatar = $("#avatar"), railAv = $("#railAvatar"), fileInput = $("#avatarFile");
+  function updateInitial() {
+    var t = ($('[data-edit="topName"]').textContent.trim() || "?").charAt(0).toUpperCase();
+    avatar.textContent = state.avatar ? "" : t;
+  }
+  function applyAvatar() {
+    var bg = state.avatar ? "url(" + state.avatar + ")" : "";
+    avatar.style.backgroundImage = bg; railAv.style.backgroundImage = bg;
+    updateInitial();
+  }
+  avatar.addEventListener("click", function () { fileInput.click(); });
+  fileInput.addEventListener("change", function () {
+    var f = fileInput.files[0]; if (!f) return;
+    var img = new Image(), url = URL.createObjectURL(f);
+    img.onload = function () {
+      var c = document.createElement("canvas"), s = 256;
+      c.width = c.height = s;
+      var ctx = c.getContext("2d");
+      var m = Math.min(img.width, img.height);
+      ctx.drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, s, s);
+      state.avatar = c.toDataURL("image/jpeg", 0.85);
+      URL.revokeObjectURL(url); applyAvatar(); save();
+    };
+    img.src = url;
+  });
+  $('[data-edit="topName"]').addEventListener("input", updateInitial);
+
+  // ----- verified badge -----
+  var verified = $("#verified");
+  function applyVerified() {
+    verified.checked = !!state.verified;
+    $("#badge").hidden = $("#badge2").style.display = "";
+    $("#badge").hidden = !state.verified;
+    $("#badge2").style.display = state.verified ? "" : "none";
+  }
+  verified.addEventListener("change", function () { state.verified = verified.checked; applyVerified(); save(); });
+
+  // ----- follow + like -----
+  var follow = $("#follow");
+  function applyFollow() {
+    follow.classList.toggle("on", state.following);
+    follow.textContent = state.following ? "Following" : "Follow";
+  }
+  follow.addEventListener("click", function () { state.following = !state.following; applyFollow(); save(); });
+  $("#likeBtn").addEventListener("click", function () { this.classList.toggle("liked"); });
+
+  // ----- grid -----
+  var grid = $("#grid");
+  function coverStyle(i) {
+    var g = GRADS[state.covers[i] % GRADS.length];
+    return "linear-gradient(160deg," + g[0] + "," + g[1] + ")";
+  }
+  function renderGrid() {
+    grid.innerHTML = "";
+    state.views.forEach(function (v, i) {
+      var t = document.createElement("div");
+      t.className = "tile"; t.style.background = coverStyle(i);
+      t.title = "Tap the cover to change its color";
+      if (i === 0) t.innerHTML += '<span class="pin">Pinned</span>';
+      var views = document.createElement("span");
+      views.className = "views";
+      views.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="#fff"><path d="M6 4l14 8-14 8z"/></svg>';
+      var num = document.createElement("span");
+      num.contentEditable = "true"; num.spellcheck = false; num.textContent = v;
+      num.setAttribute("data-edit-view", i);
+      num.style.cursor = "text";
+      num.addEventListener("input", function () { state.views[i] = num.textContent; save(); });
+      num.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); num.blur(); } });
+      num.addEventListener("click", function (e) { e.stopPropagation(); });
+      views.appendChild(num); t.appendChild(views);
+      t.addEventListener("click", function () {
+        state.covers[i] = (state.covers[i] + 1) % GRADS.length;
+        t.style.background = coverStyle(i); save();
+      });
+      grid.appendChild(t);
+    });
+  }
+  $("#shuffle").addEventListener("click", function () {
+    state.covers = state.covers.map(function () { return Math.floor(Math.random() * GRADS.length); });
+    renderGrid(); save();
+  });
+
+  // ----- boost: multiply visible numbers -----
+  function parseNum(s) {
+    var m = String(s).replace(/,/g, "").trim().match(/^([\d.]+)\s*([KMB]?)$/i);
+    if (!m) return null;
+    var n = parseFloat(m[1]), u = m[2].toUpperCase();
+    return n * (u === "K" ? 1e3 : u === "M" ? 1e6 : u === "B" ? 1e9 : 1);
+  }
+  function fmt(n) {
+    if (n >= 1e9) return (n / 1e9).toFixed(1).replace(/\.0$/, "") + "B";
+    if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
+    if (n >= 1e4) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
+    return String(Math.round(n));
+  }
+  $("#boost").addEventListener("click", function () {
+    ["followers", "likes", "fLikes", "fComments", "fSaves", "fShares"].forEach(function (k) {
+      var el = $('[data-edit="' + k + '"]'), n = parseNum(el.textContent);
+      if (n == null) return;
+      el.textContent = fmt(n * (1.1 + Math.random() * 0.4)); state.fields[k] = el.textContent;
+    });
+    state.views = state.views.map(function (v) {
+      var n = parseNum(v); return n == null ? v : fmt(n * (1.1 + Math.random() * 0.4));
+    });
+    renderGrid(); save();
+  });
+
+  // ----- reset -----
+  $("#reset").addEventListener("click", function () {
+    state = defaults();
+    $$("[data-edit]").forEach(function (el) { el.innerHTML = defaultText[el.dataset.edit]; toggleEmpty(el); });
+    applyAll(); save();
+  });
+
+  // ----- nav -----
+  $$("[data-go]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var v = b.dataset.go;
+      $$(".view").forEach(function (x) { x.classList.toggle("active", x.id === "view-" + v); });
+      $$("[data-go]").forEach(function (x) { x.classList.toggle("on", x === b); });
+    });
+  });
+
+  $("#gear").addEventListener("click", function () { document.body.classList.toggle("show-panel"); });
+
+  function applyAll() { applyAvatar(); applyVerified(); applyFollow(); renderGrid(); $("#likeBtn").classList.remove("liked"); }
+  applyAll();
+
+})();
+</script>
+</body>
+</html>
